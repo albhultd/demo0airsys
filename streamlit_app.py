@@ -5,7 +5,7 @@ import torch
 
 # Tokenizer és modell betöltése
 tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3-mini-128k-instruct", trust_remote_code=True)
-model = AutoModelForCausalLM.from_pretrained("microsoft/Phi-3-mini-128k-instruct", trust_remote_code=True)
+model = AutoModelForCausalLM.from_pretrained("microsoft/phi-2")
 
 
 
