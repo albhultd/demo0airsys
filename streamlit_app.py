@@ -1,5 +1,6 @@
 # Szükséges importok
 import streamlit as st
+import pandas as pd
 import sqlite3
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
@@ -47,10 +48,11 @@ class KapacitasEllenorzo:
     def __init__(self, termek):
         self.termek = termek  # Szótár a termekről és azok kapacitásáról
 
-    def kapacitas_ellenorzes(self, terem_nev, letszam):
-        if terem_nev in self.termek and self.termek[terem_nev] >= letszam:
-            return True
-        return False
+    def kapacitas_ellenorzes(self, terem_nev, letszam, foglalasok):
+        # Számoljuk ki az adott terem szabad kapacitását
+        foglalt_helyek = foglalasok.get(terem_nev, 0)
+        maradek_hely = self.termek.get(terem_nev, 0) - foglalt_helyek
+        return maradek_hely >= letszam
 
 # Válasz generáló függvény
 def general_valasz(bemeneti_szoveg, max_hossz=100):
@@ -88,6 +90,20 @@ termek = {
 }
 kapacitas_ellenorzo = KapacitasEllenorzo(termek)
 
+# Foglalási táblázat feltöltése
+st.subheader("Foglalási táblázat feltöltése")
+feltoltott_fajl = st.file_uploader("Töltsön fel egy foglalási táblázatot (CSV vagy Excel formátum)", type=["csv", "xlsx"])
+
+if feltoltott_fajl:
+    if feltoltott_fajl.name.endswith("csv"):
+        foglalasok_df = pd.read_csv(feltoltott_fajl)
+    else:
+        foglalasok_df = pd.read_excel(feltoltott_fajl)
+
+    # Összesítjük a foglalt helyeket teremenként
+    foglalasok = foglalasok_df.groupby('terem_nev')['letszam'].sum().to_dict()
+    st.write("Feltöltött foglalások összesítve:", foglalasok)
+
 if hitelesites.hitelesitett() and elofizetes_kezeles.van_eleg_jogosultsag():
     st.success("Hitelesített felhasználó és elegendő jogosultság.")
 
@@ -98,14 +114,17 @@ if hitelesites.hitelesitett() and elofizetes_kezeles.van_eleg_jogosultsag():
 
     # Kapacitás ellenőrzés és válasz generálás
     if st.button("Foglalás ellenőrzése és válasz generálása"):
-        if kapacitas_ellenorzo.kapacitas_ellenorzes(terem_nev, letszam):
-            st.success("A terem elérhető.")
-            # Válasz generálása az e-mail alapján
-            valasz = general_valasz(email_tartalom)
-            st.write("Generált válasz:")
-            st.write(valasz)
+        if feltoltott_fajl:
+            if kapacitas_ellenorzo.kapacitas_ellenorzes(terem_nev, letszam, foglalasok):
+                st.success("A terem elérhető.")
+                # Válasz generálása az e-mail alapján
+                valasz = general_valasz(email_tartalom)
+                st.write("Generált válasz:")
+                st.write(valasz)
+            else:
+                st.error("A kért terem kapacitása nem elegendő.")
         else:
-            st.error("A kért terem kapacitása nem elegendő.")
+            st.warning("Kérjük, töltsön fel foglalási táblázatot.")
 else:
     if not hitelesites.hitelesitett():
         st.warning("Nem hitelesített felhasználó.")
