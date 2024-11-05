@@ -96,15 +96,17 @@ foglalas_szoveg = st.text_area("Adja meg a foglalási adatokat (pl. '17:30, Kov�
 
 # Szöveges foglalások feldolgozása
 if foglalas_szoveg:
-    # Regular expression a létszám felismeréséhez
     foglalasok = {}
     osszes_letszam = 0
+    
+    # Foglalási adatok feldolgozása soronként
     for sor in foglalas_szoveg.splitlines():
+        # Keressük a létszám adatokat, pl. "4 fő"
         match = re.search(r'(\d+)\s*fő', sor)
         if match:
             letszam = int(match.group(1))
             osszes_letszam += letszam
-            # Egyszerűsítve, minden foglalást a "Fő terem" -hez adunk hozzá
+            # Minden foglalást az "Fő terem"-hez adunk hozzá a példában
             foglalasok["Fő terem"] = foglalasok.get("Fő terem", 0) + letszam
 
     st.write(f"Összes foglalás létszám: {osszes_letszam} fő")
