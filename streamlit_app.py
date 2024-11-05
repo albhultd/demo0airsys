@@ -1,5 +1,6 @@
 # Szükséges importok
 import streamlit as st
+import sqlite3
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 
@@ -7,25 +8,40 @@ import torch
 tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3-mini-128k-instruct", trust_remote_code=True)
 model = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-small")
 
+# Adatbázis kapcsolat és felhasználói tábla létrehozása
+conn = sqlite3.connect('felhasznalok.db')
+c = conn.cursor()
+c.execute('''CREATE TABLE IF NOT EXISTS felhasznalok
+             (felhasznalo_nev TEXT PRIMARY KEY, elofizetesi_szint TEXT)''')
+conn.commit()
 
+# Új felhasználó hozzáadása az adatbázishoz
+def hozzaad_felhasznalo(felhasznalo_nev, elofizetesi_szint):
+    with conn:
+        c.execute("INSERT OR REPLACE INTO felhasznalok (felhasznalo_nev, elofizetesi_szint) VALUES (?, ?)", 
+                  (felhasznalo_nev, elofizetesi_szint))
+
+# Felhasználó előfizetési szint lekérdezése
+def lekerdezes_felhasznalo(felhasznalo_nev):
+    c.execute("SELECT elofizetesi_szint FROM felhasznalok WHERE felhasznalo_nev = ?", (felhasznalo_nev,))
+    eredmeny = c.fetchone()
+    return eredmeny[0] if eredmeny else "nincs"
 
 # Hitelesítés és előfizetés kezeléshez szükséges osztályok
 class FelhasznaloiHitelesites:
     def __init__(self, felhasznalo_id):
         self.felhasznalo_id = felhasznalo_id
-        self.elofizetesi_szint = "ingyenes"  # Példa: lehet "premium" vagy "enterprise" is
+        self.elofizetesi_szint = lekerdezes_felhasznalo(felhasznalo_id)
     
     def hitelesitett(self):
-        # Ide jönne a tényleges hitelesítési logika
-        return True
+        return self.elofizetesi_szint != "nincs"
 
 class ElofizetesKezeles:
     def __init__(self, hitelesites):
         self.hitelesites = hitelesites
     
     def van_eleg_jogosultsag(self):
-        # Ellenőrzi, hogy a felhasználónak van-e elegendő hozzáférése a válasz generáláshoz
-        return self.hitelesites.elofizetesi_szint != "ingyenes"
+        return self.hitelesites.elofizetesi_szint in ["premium", "enterprise"]
 
 class KapacitasEllenorzo:
     def __init__(self, termek):
@@ -46,8 +62,21 @@ def general_valasz(bemeneti_szoveg, max_hossz=100):
 # Streamlit UI
 st.title("Sales Support AI Chatbot")
 
+# Új felhasználó hozzáadása
+st.subheader("Új felhasználó hozzáadása")
+uj_felhasznalo_nev = st.text_input("Új felhasználó neve:", key="uj_felhasznalo")
+uj_elofizetesi_szint = st.selectbox("Előfizetési szint:", ["ingyenes", "premium", "enterprise"], key="uj_elofizetesi_szint")
+
+if st.button("Felhasználó hozzáadása"):
+    if uj_felhasznalo_nev:
+        hozzaad_felhasznalo(uj_felhasznalo_nev, uj_elofizetesi_szint)
+        st.success(f"{uj_felhasznalo_nev} hozzáadva {uj_elofizetesi_szint} előfizetéssel.")
+    else:
+        st.error("Kérjük, adjon meg egy felhasználónevet.")
+
 # Felhasználó hitelesítése
-felhasznalo_id = st.text_input("Adja meg a felhasználói azonosítót:")
+st.subheader("Felhasználói bejelentkezés")
+felhasznalo_id = st.text_input("Adja meg a felhasználói azonosítót:", key="felhasznalo_bejelentkezes")
 hitelesites = FelhasznaloiHitelesites(felhasznalo_id=felhasznalo_id)
 elofizetes_kezeles = ElofizetesKezeles(hitelesites)
 
@@ -78,5 +107,7 @@ if hitelesites.hitelesitett() and elofizetes_kezeles.van_eleg_jogosultsag():
         else:
             st.error("A kért terem kapacitása nem elegendő.")
 else:
-    st.warning("Nem hitelesített felhasználó vagy nincs elegendő előfizetés.")
-
+    if not hitelesites.hitelesitett():
+        st.warning("Nem hitelesített felhasználó.")
+    elif not elofizetes_kezeles.van_eleg_jogosultsag():
+        st.warning("Nincs elegendő előfizetés.")
