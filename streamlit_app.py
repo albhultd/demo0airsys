@@ -5,7 +5,8 @@ import torch
 
 # Tokenizer és modell betöltése
 tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3-mini-128k-instruct", trust_remote_code=True)
-model = AutoModelForCausalLM.from_pretrained("microsoft/Phi-3-mini-128k-instruct", revision="specific_revision_id", trust_remote_code=True)
+model = AutoModelForCausalLM.from_pretrained("microsoft/Phi-3-mini-128k-instruct", trust_remote_code=True)
+
 
 
 # Hitelesítés és előfizetés kezeléshez szükséges osztályok
